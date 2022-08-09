@@ -1,12 +1,20 @@
 import time
 
 import telebot
-
+from threading import Thread
+from time import sleep
 import base
 
 bot = telebot.TeleBot('5548062264:AAHnEhootMDvYJ15n_Svg9yolnKrMa--Dns')
 #bd = base.Base("mongodb")
 bd = base.Base("mongodb://Roooasr:sedsaigUG12IHKJhihsifhaosf@mongodb:27017/")
+
+def bans(usrId,group,minutes):
+    bd.setBan(usrId=usrId,group=group,ban=True)
+    sleep(minutes*60)
+    bd.setBan(usrId=usrId, group=group, ban=False)
+
+### Comands
 
 @bot.message_handler(commands=['start'])
 def start(message):
@@ -17,6 +25,22 @@ def start(message):
 
     if bd.getUser(message.from_user.id,message.chat.id) is None:
         bd.regUser(message.from_user.id,message.chat.id)
+
+@bot.message_handler(commands=['ban'])
+def ban(message):
+    if bd.getUser(message.from_user.id, message.chat.id)['admin'] is True:
+        usrId = message.json['reply_to_message']['from']['id']
+        group = message.chat.id
+        timess = message.text.split(" ")
+        if len(timess) > 0:
+            tr = Thread(target=bans,args=(usrId,group,int(timess[1])))
+            tr.start()
+        else:
+            bot.reply_to(message, "Введи время в минутах на сколько забанить")
+    else:
+        bot.reply_to(message, "Только для админов")
+
+
 
 @bot.message_handler(commands=['restart'])
 def restart(message):
@@ -41,7 +65,7 @@ def me(message):
 
     try:
         usr = bd.getUser(message.from_user.id,message.chat.id)
-        txt = f"Уровень: {usr['lvl']}\nВсего сообщений: {usr['msgCount']}\nАдминка: {usr['admin']}"
+        txt = f"Уровень: {usr['lvl']}\nКол-во балов: {usr['balCount']}\nАдминка: {usr['admin']}"
         print(txt)
         bot.reply_to(message,txt)
     except:
@@ -53,7 +77,7 @@ def help(message):
         bd.regUser(message.from_user.id, message.chat.id)
         bot.send_message(message.chat.id, "Ты зареган")
 
-    bot.send_message(message.chat.id,f"/me Личная информация\n/all (Для админов) позвать всех\n/restart перезапустить бота")
+    bot.send_message(message.chat.id,f"/me Личная информация\n/all (Для админов) позвать всех\n/restart перезапустить бота\n/ban (Присылать в ответ на сообщение пользователю обязательно указывать время)")
 
 @bot.message_handler(commands=['all'])
 def all(message):
@@ -68,28 +92,100 @@ def all(message):
             print(c)
             mcg.append(f"[.](tg://user?id={c['usrId']})")
         bot.send_message(message.chat.id,"".join(mcg),parse_mode='Markdown')
+    else:
+        bot.reply_to(message, "Только для админов")
 
 
-@bot.message_handler(content_types = ['new_chat_members', 'left_chat_member'])
-def delete(message):
+@bot.message_handler(content_types = ['new_chat_members'])
+def new_chat_members(message):
+    if bd.getUser(message.from_user.id, message.chat.id) is None:
+        bd.regUser(message.from_user.id, message.chat.id)
     bot.delete_message(message.chat.id, message.message_id)
 
-@bot.message_handler(content_types=['text'])
-def text(message):
+## Obrabotka message
+
+@bot.message_handler(content_types = ['video_note'])
+def video_note(message):
     try:
-        print(message)
-        if bd.getUser(message.from_user.id,message.chat.id) is None:
+        if bd.getUser(message.from_user.id, message.chat.id) is None:
             bd.regUser(message.from_user.id, message.chat.id)
-            bot.send_message(message.chat.id,"Ты зареган")
+            bot.send_message(message.chat.id, "Ты зареган")
+        if bd.getUser(message.from_user.id,message.chat.id)['ban'] is True:
+            bot.delete_message(message_id=message.message_id,chat_id=message.chat.id)
         else:
-            bd.addMsg(message.from_user.id)
-            wtf = bd.checkLvl(message.from_user.id)
+            bd.addBall(message.from_user.id,3)
+            wtf = bd.checkLvl(message.from_user.id, message.chat.id)
+            if wtf == 1:
+                bot.reply_to(message,"Ты получил новый уровень!")
+    except Exception as e:
+        bot.send_message(message.chat.id, str(e))
+
+@bot.message_handler(content_types = ['photo'])
+def photo(message):
+    try:
+        if bd.getUser(message.from_user.id, message.chat.id) is None:
+            bd.regUser(message.from_user.id, message.chat.id)
+            bot.send_message(message.chat.id, "Ты зареган")
+        if bd.getUser(message.from_user.id,message.chat.id)['ban'] is True:
+            bot.delete_message(message_id=message.message_id,chat_id=message.chat.id)
+        else:
+            bd.addBall(message.from_user.id,5,message.chat.id)
+            wtf = bd.checkLvl(message.from_user.id, message.chat.id)
+            if wtf == 1:
+                bot.reply_to(message,"Ты получил новый уровень!")
+    except Exception as e:
+        bot.send_message(message.chat.id, str(e))
+
+@bot.message_handler(content_types = ['video'])
+def video(message):
+    try:
+        if bd.getUser(message.from_user.id, message.chat.id) is None:
+            bd.regUser(message.from_user.id, message.chat.id)
+            bot.send_message(message.chat.id, "Ты зареган")
+        if bd.getUser(message.from_user.id,message.chat.id)['ban'] is True:
+            bot.delete_message(message_id=message.message_id,chat_id=message.chat.id)
+        else:
+            bd.addBall(message.from_user.id,5, message.chat.id)
+            wtf = bd.checkLvl(message.from_user.id, message.chat.id)
+            if wtf == 1:
+                bot.reply_to(message,"Ты получил новый уровень!")
+    except Exception as e:
+        bot.send_message(message.chat.id, str(e))
+
+@bot.message_handler(content_types = ['voice'])
+def voice(message):
+    try:
+        if bd.getUser(message.from_user.id, message.chat.id) is None:
+            bd.regUser(message.from_user.id, message.chat.id)
+            bot.send_message(message.chat.id, "Ты зареган")
+        if bd.getUser(message.from_user.id,message.chat.id)['ban'] is True:
+            bot.delete_message(message_id=message.message_id,chat_id=message.chat.id)
+        else:
+            bd.addBall(message.from_user.id,2, message.chat.id)
+            wtf = bd.checkLvl(message.from_user.id, message.chat.id)
             if wtf == 1:
                 bot.reply_to(message,"Ты получил новый уровень!")
     except Exception as e:
         bot.send_message(message.chat.id, str(e))
 
 
+@bot.message_handler(content_types=['text','sticker'])
+def text(message):
+    try:
+        if bd.getUser(message.from_user.id, message.chat.id) is None:
+            bd.regUser(message.from_user.id, message.chat.id)
+            bot.send_message(message.chat.id, "Ты зареган")
+        if bd.getUser(message.from_user.id,message.chat.id)['ban'] is True:
+            bot.delete_message(message_id=message.message_id,chat_id=message.chat.id)
+        else:
+            bd.addBall(message.from_user.id,1, message.chat.id)
+            wtf = bd.checkLvl(message.from_user.id, message.chat.id)
+            if wtf == 1:
+                bot.reply_to(message,"Ты получил новый уровень!")
+    except Exception as e:
+        bot.send_message(message.chat.id, str(e))
+
+## Obrabotka message
 
 if __name__ == "__main__":
     while True:

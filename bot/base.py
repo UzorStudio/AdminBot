@@ -17,12 +17,16 @@ class Base():
         post = {"usrId":usrId,
                 "group":group,
                 "admin":False,
-                "activ":False,
+                "ban":False,
                 "lvl":0,
-                "msgCount":0
+                "balCount":0
                 }
         User.insert_one(post)
 
+    def setBan(self,usrId,group,ban):
+        db = self.classter["AdminBot"]
+        User = db["User"]
+        User.update_one({"usrId":usrId,"group":group},{"$set":{"ban":ban}})
 
     def getUser(self,usrId, group):
         db = self.classter["AdminBot"]
@@ -30,25 +34,22 @@ class Base():
 
         return User.find_one({"usrId":usrId,"group":group})
 
-    def addMsg(self,usrId):
+    def addBall(self,usrId,count,group):
         db = self.classter["AdminBot"]
         User = db["User"]
 
-        User.update_one({"usrId":usrId},{"$set":{"msgCount":User.find_one({"usrId":usrId})["msgCount"]+1}})
+        User.update_one({"usrId":usrId,"group":group},{"$set":{"balCount":User.find_one({"usrId":usrId})["balCount"]+count}})
 
-    def checkLvl(self,usrId):
+    def checkLvl(self,usrId,group):
         db = self.classter["AdminBot"]
         User = db["User"]
-        usr = User.find_one({"usrId":usrId})
+        usr = User.find_one({"usrId":usrId,"group":group})
 
-        if usr["lvl"]< (usr["msgCount"]//500):
-            User.update_one({"usrId": usrId}, {"$set": {"lvl": (usr["msgCount"] // 500)}})
+        if usr["lvl"]< (usr["balCount"]//500):
+            User.update_one({"usrId": usrId,"group":group}, {"$set": {"lvl": (usr["balCount"] // 500)}})
             return 1
         else:
             return 0
-
-
-
 
     def getAllUser(self,group):
         db = self.classter["AdminBot"]
@@ -61,3 +62,9 @@ class Base():
         User = db["User"]
 
         User.update_one({"usrId":usrId,"group":group},{"$set":{"admin":True}})
+
+    def DelAll(self):
+        db = self.classter["AdminBot"]
+        User = db["User"]
+
+        User.delete_one({})
